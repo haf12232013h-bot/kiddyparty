@@ -1,399 +1,201 @@
-html {
-  font-family: Arial, Helvetica, sans-serif;
-  background: linear-gradient(180deg, #fff7fb 0%, #f6f1ff 100%);
-  color: #1e1b4b;
-}
+"use client";
 
-* {
-  box-sizing: border-box;
-}
+import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { createRoom, getMyRooms, signIn, signOut, signUp } from '@/lib/kiddyparty';
+import { supabase } from '@/lib/supabase';
 
-body {
-  margin: 0;
-  min-height: 100vh;
-}
+export default function HomePage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [roomName, setRoomName] = useState('');
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(true);
 
-a {
-  color: #7c3aed;
-  text-decoration: none;
-}
+  useEffect(() => {
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      const currentUser = data.session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        const roomList = await getMyRooms(currentUser.id);
+        setRooms(roomList);
+      }
+      setLoading(false);
+    };
 
-button,
-input,
-textarea {
-  font: inherit;
-}
+    loadSession();
 
-button {
-  cursor: pointer;
-}
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        const roomList = await getMyRooms(currentUser.id);
+        setRooms(roomList);
+      } else {
+        setRooms([]);
+      }
+      setLoading(false);
+    });
 
-.app-shell {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 20px 60px;
-}
+    return () => {
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 28px;
-  gap: 16px;
-}
+  const handleAuth = async (mode: 'signin' | 'signup') => {
+    setStatus('');
+    if (!email || !password) {
+      setStatus('Please enter both email and password.');
+      return;
+    }
 
-.brand {
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.06em;
-  color: #5b21b6;
-}
+    try {
+      if (mode === 'signup') {
+        const { error } = await signUp(email, password);
+        if (error) throw error;
+        setStatus('Account created. Check your email to confirm sign in.');
+      } else {
+        const { error } = await signIn(email, password);
+        if (error) throw error;
+        setStatus('Signed in successfully.');
+      }
+    } catch (error: any) {
+      setStatus(error.message || 'Authentication failed.');
+    }
+  };
 
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(139, 92, 246, 0.12);
-  color: #4c1d95;
-  font-weight: 700;
-}
+  const handleCreateRoom = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!user || !roomName.trim()) return;
 
-.hero {
-  display: grid;
-  grid-template-columns: 1.25fr 0.75fr;
-  gap: 24px;
-  margin-bottom: 28px;
-}
+    try {
+      const newRoom = await createRoom(roomName.trim(), user.id);
+      setRoomName('');
+      setStatus(`Room created: ${newRoom.name}`);
+      const roomList = await getMyRooms(user.id);
+      setRooms(roomList);
+    } catch (error: any) {
+      setStatus(error.message || 'Could not create room.');
+    }
+  };
 
-.card {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(124, 58, 237, 0.12);
-  border-radius: 24px;
-  box-shadow: 0 20px 45px rgba(87, 35, 129, 0.08);
-}
+  const handleSignOut = async () => {
+    await signOut();
+    setUser(null);
+    setStatus('Signed out.');
+  };
 
-.hero-main {
-  padding: 30px;
-}
-
-.hero-main h1 {
-  font-size: clamp(2.2rem, 5vw, 4rem);
-  margin: 0 0 12px;
-  line-height: 1;
-  letter-spacing: -0.07em;
-}
-
-.hero-main p {
-  margin: 0 0 20px;
-  color: #4b5563;
-  font-size: 1.08rem;
-}
-
-.inline-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.primary {
-  border: none;
-  background: linear-gradient(135deg, #8b5cf6, #ec4899);
-  color: white;
-  padding: 12px 18px;
-  border-radius: 12px;
-  font-weight: 700;
-}
-
-.secondary {
-  border: 1px solid rgba(124, 58, 237, 0.25);
-  background: white;
-  color: #4c1d95;
-  padding: 12px 18px;
-  border-radius: 12px;
-  font-weight: 700;
-}
-
-.side-panel {
-  padding: 24px;
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.metric {
-  padding: 16px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(243, 232, 255, 0.8), rgba(255, 255, 255, 0.6));
-}
-
-.metric strong {
-  display: block;
-  font-size: 1.6rem;
-  color: #4c1d95;
-}
-
-.metric span {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 24px;
-}
-
-.panel {
-  padding: 24px;
-}
-
-.panel h2 {
-  margin-top: 0;
-  margin-bottom: 18px;
-  color: #1f2937;
-}
-
-.room-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.room-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  padding: 16px;
-  border: 1px solid rgba(124, 58, 237, 0.12);
-  border-radius: 16px;
-  background: #fff;
-}
-
-.room-item h3 {
-  margin: 0 0 6px;
-  font-size: 1.05rem;
-}
-
-.room-item p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.room-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.small-btn {
-  border: none;
-  background: rgba(139, 92, 246, 0.12);
-  color: #4c1d95;
-  padding: 8px 12px;
-  border-radius: 10px;
-  font-weight: 700;
-}
-
-.form-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.input {
-  width: 100%;
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  background: white;
-  border-radius: 12px;
-  padding: 12px 14px;
-}
-
-.center-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background: linear-gradient(180deg, #fdf2f8, #f5f3ff);
-  padding: 32px 20px;
-}
-
-.auth-card {
-  width: min(480px, 100%);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(124, 58, 237, 0.1);
-  border-radius: 28px;
-  padding: 28px;
-  box-shadow: 0 20px 45px rgba(49, 46, 129, 0.08);
-}
-
-.auth-card h1 {
-  margin-top: 0;
-  margin-bottom: 8px;
-}
-
-.auth-card p {
-  color: #4b5563;
-  margin-bottom: 20px;
-}
-
-.chat-shell {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 28px 20px 60px;
-}
-
-.chat-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
-.chat-layout {
-  display: grid;
-  grid-template-columns: 270px 1fr;
-  gap: 20px;
-}
-
-.sidebar,
-.chatbox {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(124, 58, 237, 0.12);
-  border-radius: 24px;
-  overflow: hidden;
-}
-
-.sidebar {
-  padding: 18px;
-}
-
-.member-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.member-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  background: #faf5ff;
-  border-radius: 12px;
-}
-
-.member-item strong {
-  display: block;
-}
-
-.member-item span {
-  color: #6b7280;
-  font-size: 0.8rem;
-}
-
-.chatbox {
-  display: flex;
-  flex-direction: column;
-  min-height: 650px;
-}
-
-.chat-header {
-  padding: 18px 20px;
-  border-bottom: 1px solid rgba(124, 58, 237, 0.12);
-}
-
-.chat-header h2 {
-  margin: 0;
-  font-size: 1.35rem;
-}
-
-.chat-messages {
-  flex: 1;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: linear-gradient(180deg, #fff7fb 0%, #f4f7ff 100%);
-}
-
-.message {
-  display: flex;
-  flex-direction: column;
-  max-width: 70%;
-  background: white;
-  border: 1px solid rgba(124, 58, 237, 0.08);
-  padding: 10px 12px;
-  border-radius: 16px;
-}
-
-.message.self {
-  align-self: flex-end;
-  background: linear-gradient(135deg, #8b5cf6, #ec4899);
-  color: white;
-}
-
-.message strong {
-  margin-bottom: 4px;
-  font-size: 0.82rem;
-}
-
-.message time {
-  font-size: 0.72rem;
-  opacity: 0.8;
-  margin-top: 8px;
-}
-
-.chat-compose {
-  display: flex;
-  gap: 10px;
-  padding: 18px 20px;
-  border-top: 1px solid rgba(124, 58, 237, 0.12);
-}
-
-.chat-compose input {
-  flex: 1;
-}
-
-.story-strip {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  margin: 12px 0 20px;
-  padding-bottom: 4px;
-}
-
-.story-pill {
-  background: linear-gradient(135deg, #fca5a5, #f9a8d4);
-  color: white;
-  min-width: 110px;
-  text-align: center;
-  padding: 14px 12px;
-  border-radius: 18px;
-  font-weight: 700;
-}
-
-.empty-state {
-  color: #6b7280;
-  font-size: 0.95rem;
-}
-
-@media (max-width: 820px) {
-  .hero,
-  .grid,
-  .chat-layout {
-    grid-template-columns: 1fr;
+  if (loading) {
+    return <main className="center-box"><div className="auth-card"><h1>Loading Kiddyparty...</h1></div></main>;
   }
 
-  .chat-shell {
-    padding-top: 20px;
+  if (!user) {
+    return (
+      <main className="center-box">
+        <div className="auth-card">
+          <h1>Kiddyparty</h1>
+          <p>Private invite-only rooms for your closest people.</p>
+
+          <div className="form-block">
+            <input
+              className="input"
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            <input
+              className="input"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+
+            <div className="inline-actions">
+              <button className="primary" type="button" onClick={() => handleAuth('signup')}>Create account</button>
+              <button className="secondary" type="button" onClick={() => handleAuth('signin')}>Sign in</button>
+            </div>
+
+            {status ? <div className="status-box">{status}</div> : null}
+          </div>
+        </div>
+      </main>
+    );
   }
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand">Kiddyparty</div>
+        <button className="secondary" onClick={handleSignOut}>Sign out</button>
+      </header>
+
+      <section className="hero">
+        <div className="card hero-main">
+          <h1>Private rooms for your circle.</h1>
+          <p>Only invited people can join. No public rooms, no public discovery.</p>
+          <form className="form-block" onSubmit={handleCreateRoom}>
+            <input
+              className="input"
+              placeholder="Room name"
+              value={roomName}
+              onChange={(event) => setRoomName(event.target.value)}
+            />
+            <button className="primary" type="submit">Create room</button>
+          </form>
+          {status ? <div className="status-box" style={{ marginTop: 14 }}>{status}</div> : null}
+        </div>
+
+        <aside className="card side-panel">
+          <strong style={{ fontSize: '1rem', color: '#374151' }}>Signed in as</strong>
+          <div style={{ marginTop: 12, fontWeight: 700, color: '#4c1d95' }}>{user.email}</div>
+          <div className="metrics">
+            <div className="metric">
+              <strong>{rooms.length}</strong>
+              <span>Rooms</span>
+            </div>
+            <div className="metric">
+              <strong>Invites</strong>
+              <span>Private</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section className="card panel">
+        <h2>Your rooms</h2>
+        <div className="room-list">
+          {rooms.length === 0 ? (
+            <div className="empty-state">No rooms yet. Create a private room above.</div>
+          ) : (
+            rooms.map((room) => (
+              <div key={room.id} className="room-item">
+                <div>
+                  <h3>{room.name}</h3>
+                  <p>Invite code: {room.invite_code}</p>
+                </div>
+                <div className="room-actions">
+                  <Link href={`/rooms/${room.id}`} className="small-btn">Open</Link>
+                  <button
+                    className="small-btn"
+                    onClick={async () => {
+                      const inviteUrl = `${window.location.origin}/rooms/${room.id}?invite=${room.invite_code}`;
+                      await navigator.clipboard.writeText(inviteUrl);
+                      setStatus(`Invite copied for ${room.name}`);
+                    }}
+                  >
+                    Copy link
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </main>
+  );
 }

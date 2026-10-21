@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Kiddyparty',
-  description: 'Private invite-only group chat for close friends and family',
+  description: 'Private invite-only rooms for your closest people',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
